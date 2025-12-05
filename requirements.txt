@@ -11,3 +11,5 @@ xgboost
 uvicorn
 fastapi
 python-multipart
+PyPDF2
+pdfminer.six

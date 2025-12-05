@@ -13,6 +13,8 @@ export default function App() {
   const [question, setQuestion] = useState("");
   const [answers, setAnswers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState("summary");
+  const summaryLines = (summary || "").split("\n").filter((l) => l.trim());
 
   // 1) Upload / paste flows
   const submitPastedText = async () => {
@@ -34,7 +36,7 @@ export default function App() {
   };
 
   const uploadFile = async () => {
-    if (!file) return alert("Choose a file (.txt only)");
+    if (!file) return alert("Choose a .txt/.pdf file");
     setLoading(true);
     try {
       const fd = new FormData();
@@ -90,6 +92,7 @@ export default function App() {
     try {
       const form = new URLSearchParams();
       form.append("question", question);
+      form.append("doc_id", docId);
       const res = await axios.post(`${API}/qa`, form);
       setAnswers(res.data.answers || []);
     } catch (err) {
@@ -101,41 +104,44 @@ export default function App() {
 
   // UI helpers
   const riskColor = (w) => {
-    if (!w) return "#ddd";
-    if (w.toLowerCase() === "high") return "#dc6161ff";
-    if (w.toLowerCase() === "medium") return "#fff0b3";
-    return "#e8ffe8";
+    if (!w) return "#e0e0e0";
+    if (w.toLowerCase() === "high") return "#ffe5e5";
+    if (w.toLowerCase() === "medium") return "#fff9db";
+    return "#eaffea";
   };
 
   return (
     <div
       style={{
         fontFamily: "Inter, Arial",
-        width: "100rem",
-        margin: "0 auto",
+        width: "95vw",
+        margin: "20",
       }}
     >
       <div
         style={{
           width: "90%",
           margin: "0 auto",
+          padding:'30px'
         }}
       >
-        <h1>Contract Intelligence — One Page</h1>
+        <h1>Legal Lens</h1>
+        <h4>AI-Powered Contract Summarization, Risk Detection, and Legal Query Assistant</h4>
 
         <section
           style={{
-            display: "grid",
+            display: "flex",
+            flexDirection: "column",
             gap: 12,
-            gridTemplateColumns: "1fr 1fr",
             marginTop: 18,
           }}
         >
           {/* Left: Paste / Upload */}
           <div
-            style={{ padding: 12, border: "1px solid #eee", borderRadius: 8 }}
+            style={{ padding: 12, border: "1px solid #4b4949ff", borderRadius: 8 ,display:'flex',flexDirection:'row'}}
           >
-            <h3>Paste contract text</h3>
+            <div style={{width:'70%'}}>
+              <h3>Paste contract text</h3>
             <textarea
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
@@ -149,9 +155,10 @@ export default function App() {
               </button>
             </div>
 
-            <hr style={{ margin: "18px 0" }} />
-
-            <h3>Or upload a .txt file</h3>
+           </div>
+          <div style={{width:'auto', display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:5}}>
+            
+            <h3>Or upload a .txt/.pdf file</h3>
             <input
               type="file"
               accept=".txt,.pdf"
@@ -172,56 +179,74 @@ export default function App() {
               </div>
             </div>
           </div>
+          </div>
 
           {/* Right: Summary + Risks */}
           <div
-            style={{ padding: 12, border: "1px solid #eee", borderRadius: 8 }}
+            style={{ padding: 12, border: "1px solid #e0e0e0", borderRadius: 12, background: "#ffffff" }}
           >
-            <h3>Executive Summary</h3>
-            <div
-              style={{
-                minHeight: 140,
-                background: "#fafafa",
-                padding: 10,
-                borderRadius: 6,
-              }}
-            >
-              <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
-                {summary || "Summary will appear here after upload."}
-              </pre>
+            <div style={{ display: "flex", gap: 8,marginBottom: 11 }}>
+              <button
+                onClick={() => setTab("summary")}
+                style={{
+                  padding: "8px 12px",
+                  background: tab === "summary" ? "#e3f2fd" : "#fff",
+                  borderBottom: tab === "summary" ? "3px solid #42a5f5" : "1px solid #ddd",
+                  cursor: "pointer",
+                }}
+              >
+                Executive Summary
+              </button>
+              <button
+                onClick={() => setTab("risks")}
+                style={{
+                  padding: "8px 12px",
+                  borderBottom: tab === "risks" ? "3px solid #ef5350" : "1px solid #ddd",
+                  background: tab === "risks" ? "#ffebee" : "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Risk Detection
+              </button>
             </div>
 
-            <h3 style={{ marginTop: 14 }}>Risk Detection</h3>
-            {risks.length === 0 ? (
-              <div style={{ color: "#666" }}>
-                No risks detected yet. Click "Submit" to analyze.
+            {tab === "summary" ? (
+              <div style={{ width: "100%", padding: 10 }}>
+                {summaryLines.length === 0 ? (
+                  <div style={{ color: "#666" }}>Summary will appear here after upload.</div>
+                ) : (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {summaryLines.slice(0, 15).map((line, i) => (
+                      <div key={i} style={{ width: "100%", padding: 8, background: "#fafafa", borderRadius: 6 }}>
+                        - {line.replace(/^\s*-\s*/, "")}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
-              <div style={{ display: "grid", gap: 8 }}>
-                {risks.map((r, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      padding: 10,
-                      borderRadius: 6,
-                      background: riskColor(r.weight),
-                    }}
-                  >
+              risks.length === 0 ? (
+                <div style={{ color: "#666" }}>No risks detected yet.</div>
+              ) : (
+                <div style={{ display: "grid", gap: 8 }}>
+                  {risks.map((r, i) => (
                     <div
+                      key={i}
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
+                        padding: 10,
+                        borderRadius: 6,
+                        background: riskColor(r.weight),
                       }}
                     >
-                      <strong>{r.type}</strong>
-                      <span style={{ fontSize: 13 }}>{r.weight}</span>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <strong>{r.type}</strong>
+                        <span style={{ fontSize: 13 }}>{r.weight}</span>
+                      </div>
+                      <div style={{ marginTop: 6, color: "#3e4a59" }}>{r.context}</div>
                     </div>
-                    <div style={{ marginTop: 6, color: "#333" }}>
-                      {r.context}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )
             )}
 
             <h3 style={{ marginTop: 14 }}>Suggested Questions</h3>
@@ -272,29 +297,13 @@ export default function App() {
             {answers.length === 0 ? (
               <div style={{ color: "#666" }}>No answers yet.</div>
             ) : (
-              answers.map((a, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: 10,
-                    border: "1px solid #ddd",
-                    borderRadius: 6,
-                    marginBottom: 8,
-                  }}
-                >
-                  <div>
-                    <strong>Answer:</strong> {a.answer}
+              <div style={{ display: "grid", gap: 8 }}>
+                {answers.map((a, i) => (
+                  <div key={i} style={{ padding: 10, background: "#e8f5e9", borderRadius: 8, border: "1px solid #c8e6c9", color: "#1b5e20" }}>
+                    - {a}
                   </div>
-                  <div style={{ fontSize: 13, color: "#666" }}>
-                    Score: {a.score}
-                  </div>
-                  <div
-                    style={{ marginTop: 8, background: "#fafafa", padding: 8 }}
-                  >
-                    {a.context}
-                  </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         </section>

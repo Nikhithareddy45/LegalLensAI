@@ -7,6 +7,7 @@ TXT_DIR = os.path.join(DATA_DIR, "full_contract_txt")
 
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(TXT_DIR, exist_ok=True)
 
 CHUNK_SIZE = 1800       # characters
 CHUNK_OVERLAP = 300     # characters

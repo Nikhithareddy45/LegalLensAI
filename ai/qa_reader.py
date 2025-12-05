@@ -1,43 +1,55 @@
-from transformers import pipeline
 from ai.retriever import ContractRetriever
+from ai.config import TXT_DIR
+from pathlib import Path
+import re
 
 
 class LegalQASystem:
 
     def __init__(self):
-        print("🤖 Loading QA model (roberta-base-squad2)...")
-        self.qa = pipeline(
-            "question-answering",
-            model="deepset/roberta-base-squad2",
-            tokenizer="deepset/roberta-base-squad2",
-        )
-        self.retriever = ContractRetriever()
+        pass
 
-    def answer(self, question, top_k=5):
-        print(f"\n❓ QUESTION: {question}\n")
+    def answer(self, question, top_k=3, doc_id=None):
+        q = [w.lower() for w in re.findall(r"\b[a-zA-Z]{3,}\b", question)]
+        stop = {"what","which","where","when","that","this","with","from","into","about","does","is","are","the","and","for"}
+        q = [w for w in q if w not in stop]
 
-        results = self.retriever.search(question, top_k=top_k)
+        def score_sent(s):
+            words = set(re.findall(r"\b[a-zA-Z]{3,}\b", s.lower()))
+            return sum(1 for w in q if w in words)
 
-        answers = []
+        texts = []
+        if doc_id:
+            txt_path = Path(TXT_DIR) / f"{doc_id}.txt"
+            if not txt_path.exists():
+                return []
+            with open(txt_path, "r", encoding="utf-8") as f:
+                t = f.read()
+            texts = [t]
+        else:
+            retriever = ContractRetriever()
+            results = retriever.search(question, top_k=top_k)
+            texts = [r["text"] for r in results]
 
-        for chunk in results:
-            context = chunk["text"]
+        best = []
+        for t in texts:
+            sents = re.split(r"(?<=[\.\!\?])\s+", t)
+            scored = [(score_sent(s), s.strip()) for s in sents if s.strip()]
+            scored.sort(key=lambda x: -x[0])
+            for sc, s in scored:
+                if sc <= 0:
+                    continue
+                best.append(s)
+                break
 
-            try:
-                out = self.qa(question=question, context=context)
-                answers.append({
-                    "answer": out.get("answer"),
-                    "score": float(out.get("score")),
-                    "source": chunk["chunk_id"],
-                    "context": context[:500] + "..."
-                })
-            except Exception as e:
-                pass
+        if not best:
+            return ["No relevant information found in the document."]
 
-        # Rank by score
-        answers = sorted(answers, key=lambda x: -x["score"])
-
-        return answers
+        ans = best[0]
+        ans = re.sub(r"\s+", " ", ans).strip()
+        if len(ans) > 200:
+            ans = ans[:200]
+        return [ans]
 
 
 if __name__ == "__main__":

@@ -1,15 +1,14 @@
 import numpy as np
-from sentence_transformers import SentenceTransformer
-from ai.retriever import ContractRetriever
-from ai.config import EMBED_MODEL
+from ai.config import TXT_DIR
+from ai.preprocess import chunk_text
+from pathlib import Path
+import re
 
 
 class ContractSummarizer:
 
     def __init__(self):
-        print("🔍 Loading summarization model...")
-        self.model = SentenceTransformer(EMBED_MODEL)
-        self.retriever = ContractRetriever()
+        pass
 
     def summarize_document(self, doc_id, num_chunks=5):
         """
@@ -17,35 +16,31 @@ class ContractSummarizer:
         """
         print(f"📝 Summarizing document: {doc_id}")
 
-        # Get all chunks belonging to this doc
-        doc_chunks = {
-            cid: text
-            for cid, text in self.retriever.chunks.items()
-            if cid.startswith(doc_id)
-        }
-
-        if not doc_chunks:
+        txt_path = Path(TXT_DIR) / f"{doc_id}.txt"
+        if not txt_path.exists():
             return "❌ Document not found."
 
-        texts = list(doc_chunks.values())
-
-        # Embed chunks
-        embeddings = self.model.encode(texts, convert_to_numpy=True)
-        embeddings = embeddings / (np.linalg.norm(embeddings, axis=1, keepdims=True) + 1e-10)
-
-        # Compute centroid of the document
-        centroid = embeddings.mean(axis=0, keepdims=True)
-
-        # Score by similarity to centroid
-        scores = (embeddings @ centroid.T).flatten()
-
-        # Pick top chunks
-        top_idx = np.argsort(scores)[-num_chunks:][::-1]
-
-        selected_chunks = [texts[i] for i in top_idx]
-
-        # Build readable summary
-        summary = "\n\n".join(chunk.strip() for chunk in selected_chunks)
+        with open(txt_path, "r", encoding="utf-8") as f:
+            raw = f.read()
+        # Sentence-based summarization: select 7–15 key sentences
+        t = raw
+        sents = re.split(r"(?<=[\.\!\?])\s+", t.strip())
+        sents = [s.strip() for s in sents if s.strip()]
+        keywords = [
+            "termination","notice","payment","net","fee","indemnity",
+            "liability","confidentiality","renewal","automatic","governing law",
+            "jurisdiction","warranty","breach","penalty","obligation"
+        ]
+        def score(s):
+            ls = s.lower()
+            return sum(1 for k in keywords if k in ls) + min(len(s)//120,1)
+        scored = sorted(((score(s), s) for s in sents), key=lambda x: -x[0])
+        selected = [s for sc, s in scored[:15]]
+        if len(selected) < 7:
+            extra = [s for s in sents if s not in selected]
+            selected += extra[:(7-len(selected))]
+        selected = [s[:220] for s in selected]
+        summary = "\n".join([f"- {p}" for p in selected])
 
         return summary
 

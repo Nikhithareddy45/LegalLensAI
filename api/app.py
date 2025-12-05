@@ -8,6 +8,7 @@ from ai.risk_detector import RiskDetector
 from pathlib import Path
 import uuid
 import sys
+import io
 
 # Add project root to path
 ROOT = str(Path(__file__).resolve().parents[1])
@@ -21,6 +22,9 @@ from ai.retriever import ContractRetriever
 from ai.summarizer import ContractSummarizer
 from ai.qa_reader import LegalQASystem
 from ai.config import TXT_DIR
+from PyPDF2 import PdfReader
+from pdfminer.high_level import extract_text as pdfminer_extract_text
+import re
 
 app = FastAPI(title="Contract Intelligence API")
 
@@ -33,55 +37,120 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-RETR = None
 SUM = None
 QA = None
 RISK = RiskDetector()
+def suggest_from_risks(risks):
+    templates = {
+        "termination": [
+            "What is the termination notice period?",
+            "Can termination occur without cause?"
+        ],
+        "liability": [
+            "What liability caps or exclusions apply?"
+        ],
+        "indemnity": [
+            "What indemnity obligations are specified?"
+        ],
+        "renewal": [
+            "Are there automatic renewal terms?",
+            "How can renewal be prevented?"
+        ],
+        "confidentiality": [
+            "What confidentiality obligations and exceptions are defined?"
+        ],
+        "payment terms": [
+            "What are payment terms and deadlines?",
+            "Are late fees or interest specified?"
+        ],
+        "jurisdiction": [
+            "Which jurisdiction applies?",
+            "How are disputes resolved?"
+        ],
+        "governing law": [
+            "What is the governing law?"
+        ],
+        "notice period": [
+            "What are notice periods for key actions?"
+        ]
+    }
+    order = {"High": 3, "Medium": 2, "Low": 1}
+    risks_sorted = sorted(risks, key=lambda r: -order.get(r.get("weight","Low"),1))
+    qs = []
+    seen = set()
+    for r in risks_sorted:
+        k = r.get("type","")
+        for q in templates.get(k, []):
+            if q not in seen:
+                seen.add(q)
+                qs.append(q)
+        if len(qs) >= 8:
+            break
+    if not qs:
+        qs = [
+            "What are the key obligations and risks?",
+            "What are payment terms and termination conditions?"
+        ]
+    return qs
 def ensure_loaded():
-    global RETR, SUM, QA
-    if RETR is None:
-        RETR = ContractRetriever()
+    global SUM, QA
     if SUM is None:
         SUM = ContractSummarizer()
     if QA is None:
         QA = LegalQASystem()
-    return RETR, SUM, QA
+    return SUM, QA
 
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in [".txt"]:
-        return JSONResponse({"error": "Only .txt supported now"}, status_code=400)
+    if ext not in [".txt", ".pdf"]:
+        return JSONResponse({"error": "Only .txt or .pdf"}, status_code=400)
 
     filename = f"user_{uuid.uuid4().hex}.txt"
     save_path = Path(TXT_DIR) / filename
 
     contents = await file.read()
-    with open(save_path, "wb") as f:
-        f.write(contents)
 
-    # Reprocess everything
-    preprocess_contracts()
-    build_index()
+    if ext == ".pdf":
+        text = extract_pdf_text(contents)
+        with open(save_path, "w", encoding="utf-8") as f:
+            f.write(text)
+    else:
+        try:
+            text = contents.decode("utf-8", errors="ignore")
+        except Exception:
+            text = contents.decode("latin-1", errors="ignore")
+        with open(save_path, "w", encoding="utf-8") as f:
+            f.write(clean_text(text))
 
-    global RETR, SUM, QA
-    RETR = SUM = QA = None
+    doc_id = filename.replace(".txt", "")
+    global SUM
+    if SUM is None:
+        SUM = ContractSummarizer()
+    summary = SUM.summarize_document(doc_id)
 
-    return {"ok": True, "doc_id": filename.replace(".txt", "")}
+    txt_path = Path(TXT_DIR) / f"{doc_id}.txt"
+    with open(txt_path, "r", encoding="utf-8") as f:
+        raw_text = f.read()
+    risks = RISK.analyze(raw_text)
+
+    queries = suggest_from_risks(risks)
+
+    return {"ok": True, "doc_id": doc_id, "summary": summary, "risks": risks, "queries": queries}
 
 
 @app.post("/summarize")
 def summarize(doc_id: str = Form(...)):
-    _, SUM, _ = ensure_loaded()
+    SUM, _ = ensure_loaded()
     result = SUM.summarize_document(doc_id)
     return {"summary": result}
 
 
 @app.post("/qa")
-def qa(question: str = Form(...)):
-    _, _, QA = ensure_loaded()
-    answers = QA.answer(question)
+def qa(question: str = Form(...), doc_id: str = Form(None)):
+    _, QA = ensure_loaded()
+    answers = QA.answer(question, doc_id=doc_id)
     return {"answers": answers}
 @app.post("/upload_text")
 def upload_text(text: str = Form(...)):
@@ -94,18 +163,23 @@ def upload_text(text: str = Form(...)):
     with open(save_path, "w", encoding="utf-8") as f:
         f.write(text)
 
-    # run pipeline
     try:
-        preprocess_contracts()
-        build_index()
+        pass
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Pipeline failed: {e}")
 
-    # reset loaded singletons so our new doc is included
-    global RETR, SUM, QA
-    RETR = SUM = QA = None
+    global SUM
+    if SUM is None:
+        SUM = ContractSummarizer()
+    summary = SUM.summarize_document(doc_id)
 
-    return {"ok": True, "doc_id": doc_id}
+    with open(save_path, "r", encoding="utf-8") as f:
+        raw_text = f.read()
+    risks = RISK.analyze(raw_text)
+
+    queries = suggest_from_risks(risks)
+
+    return {"ok": True, "doc_id": doc_id, "summary": summary, "risks": risks, "queries": queries}
 
 @app.post("/risk")
 def risk(doc_id: str = Form(...)):
@@ -125,15 +199,38 @@ def risk(doc_id: str = Form(...)):
 
 @app.post("/auto_queries")
 def auto_queries(doc_id: str = Form(None)):
-    """
-    Return a small list of suggested queries. If doc_id exists, you can optionally
-    use the retriever for doc-specific suggestions (we return generic suggestions here).
-    """
+    if doc_id:
+        txt_path = Path(TXT_DIR) / f"{doc_id}.txt"
+        if txt_path.exists():
+            with open(txt_path, "r", encoding="utf-8") as f:
+                text = f.read()
+            risks = RISK.analyze(text)
+            return {"doc_id": doc_id, "queries": suggest_from_risks(risks)}
     suggestions = [
-        "What is the termination notice period?",
-        "What payment terms are specified?",
-        "Is there an indemnity clause? What does it require?",
-        "Are there any limitation of liability clauses?",
-        "What are renewal / automatic renewal terms?"
+        "What are the key obligations and risks?",
+        "What are payment terms and termination conditions?"
     ]
     return {"doc_id": doc_id, "queries": suggestions}
+def clean_text(t: str) -> str:
+    t = t.replace("\r", "\n")
+    t = re.sub(r"[ \t]+", " ", t)
+    t = re.sub(r"\n{2,}", "\n\n", t)
+    return t.strip()
+
+def extract_pdf_text(contents: bytes) -> str:
+    try:
+        # First try pdfminer (better layout and text coverage)
+        bio = io.BytesIO(contents)
+        text = pdfminer_extract_text(bio)
+        if text and len(text.strip()) > 50:
+            return clean_text(text)
+    except Exception:
+        pass
+    # Fallback to PyPDF2
+    try:
+        bio = io.BytesIO(contents)
+        reader = PdfReader(bio)
+        text = "\n\n".join((page.extract_text() or "") for page in reader.pages)
+        return clean_text(text)
+    except Exception:
+        return ""

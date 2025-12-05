@@ -1,1 +1,4 @@
 data/
+
+#Ignore windsurf AI rules
+.windsurfrules
