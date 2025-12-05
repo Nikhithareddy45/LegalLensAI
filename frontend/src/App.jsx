@@ -113,32 +113,32 @@ export default function App() {
   return (
     <div
       style={{
-        fontFamily: "Inter, Arial",
+        fontFamily: "Poppins, Segoe UI, Helvetica, Arial, sans-serif",
         width: "95vw",
-        margin: "20",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div
         style={{
-          width: "90%",
           margin: "0 auto",
-          padding:'30px'
+          width: "95%",
         }}
       >
         <h1>Legal Lens</h1>
         <h4>AI-Powered Contract Summarization, Risk Detection, and Legal Query Assistant</h4>
 
+        <div style={{ flex: 1, overflowY: "auto" ,  width: "98%", margin: "0 auto"}}>
         <section
           style={{
             display: "flex",
             flexDirection: "column",
-            gap: 12,
-            marginTop: 18,
+            gap: 10,
           }}
         >
           {/* Left: Paste / Upload */}
           <div
-            style={{ padding: 12, border: "1px solid #4b4949ff", borderRadius: 8 ,display:'flex',flexDirection:'row'}}
+            style={{ padding: 16, border: "1px solid #e0e0e0", borderRadius: 12, background: "#ffffff", boxShadow: "0 4px 12px rgba(0,0,0,0.06)", display:'flex',flexDirection:'row'}}
           >
             <div style={{width:'70%'}}>
               <h3>Paste contract text</h3>
@@ -146,7 +146,7 @@ export default function App() {
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               rows={10}
-              style={{ width: "90%", padding: 8, fontFamily: "monospace" }}
+              style={{ width: "95%", padding: 10, fontFamily: "monospace", borderRadius: 8, border: "1px solid #b0bec5" }}
               placeholder="Paste contract text here..."
             />
             <div style={{ marginTop: 8 }}>
@@ -211,13 +211,13 @@ export default function App() {
             </div>
 
             {tab === "summary" ? (
-              <div style={{ width: "100%", padding: 10 }}>
+              <div style={{ width: "100%" }}>
                 {summaryLines.length === 0 ? (
                   <div style={{ color: "#666" }}>Summary will appear here after upload.</div>
                 ) : (
                   <div style={{ display: "grid", gap: 8 }}>
                     {summaryLines.slice(0, 15).map((line, i) => (
-                      <div key={i} style={{ width: "100%", padding: 8, background: "#fafafa", borderRadius: 6 }}>
+                      <div key={i} style={{ width: "100%", padding: 10, background: "#e3f2fd", borderRadius: 8, borderLeft: "4px solid #42a5f5", color: "#0d47a1" }}>
                         - {line.replace(/^\s*-\s*/, "")}
                       </div>
                     ))}
@@ -257,7 +257,7 @@ export default function App() {
                 suggested.map((q, i) => (
                   <button
                     key={i}
-                    style={{ textAlign: "left" }}
+                    style={{ textAlign: "left", background: "#fff8e1", color: "#8d6e63", border: "1px solid #ffe0b2", borderRadius: 20, padding: "8px 12px" }}
                     onClick={() => {
                       setQuestion(q);
                       askQuestion();
@@ -270,20 +270,25 @@ export default function App() {
             </div>
           </div>
         </section>
+        </div>
 
         {/* Bottom: QA */}
         <section
           style={{
-            marginTop: 18,
-            padding: 12,
-            border: "1px solid #eee",
-            borderRadius: 8,
+            marginTop: 0,
+            padding: 16,
+            width: "100%",
+            background: "#ffffff",
+            position: "sticky",
+            bottom: 0,
+            boxShadow: "0 -6px 16px rgba(0,0,0,0.06)",
+            border:"1px solid #2ba3dfff", borderRadius: 8 
           }}
         >
           <h3>Ask Anything</h3>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8 , width:"100%"}}>
             <input
-              style={{ flex: 1, padding: 10 }}
+              style={{ flex: 1, padding: 16, borderRadius: 8, border: "1px solid #b0bec5" }}
               placeholder="Type your question about the document..."
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
