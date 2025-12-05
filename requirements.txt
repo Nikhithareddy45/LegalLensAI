@@ -1,0 +1,13 @@
+# requirements.txt
+numpy
+pandas
+tqdm
+sentence-transformers
+faiss-cpu
+transformers
+datasets
+scikit-learn
+xgboost
+uvicorn
+fastapi
+python-multipart
