@@ -4,7 +4,7 @@ import pandas as pd
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 import faiss
-from config import (
+from ai.config import (
     OUTPUT_DIR, CHUNK_JSONL, METADATA_CSV,
     EMBED_MODEL, FAISS_INDEX_PATH, EMBEDDINGS_NPY
 )

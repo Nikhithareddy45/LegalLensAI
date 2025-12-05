@@ -1,7 +1,7 @@
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from retriever import ContractRetriever
-from config import EMBED_MODEL
+from ai.retriever import ContractRetriever
+from ai.config import EMBED_MODEL
 
 
 class ContractSummarizer:

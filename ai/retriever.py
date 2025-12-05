@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import faiss
 from sentence_transformers import SentenceTransformer
-from config import (
+from ai.config import (
     EMBED_MODEL,
     FAISS_INDEX_PATH,
     METADATA_CSV,

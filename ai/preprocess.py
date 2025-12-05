@@ -2,7 +2,7 @@ import os
 import json
 import pandas as pd
 from tqdm import tqdm
-from config import TXT_DIR, OUTPUT_DIR, CHUNK_JSONL, METADATA_CSV, CHUNK_SIZE, CHUNK_OVERLAP
+from ai.config import TXT_DIR, OUTPUT_DIR, CHUNK_JSONL, METADATA_CSV, CHUNK_SIZE, CHUNK_OVERLAP
 
 
 def clean_text(text: str) -> str:

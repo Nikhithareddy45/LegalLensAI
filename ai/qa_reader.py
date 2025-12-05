@@ -1,5 +1,5 @@
 from transformers import pipeline
-from retriever import ContractRetriever
+from ai.retriever import ContractRetriever
 
 
 class LegalQASystem:
