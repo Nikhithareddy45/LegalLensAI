@@ -2,6 +2,23 @@
 
 An advanced AI-powered legal document analysis system that combines machine learning models with natural language processing to provide comprehensive legal contract analysis, risk detection, and intelligent querying capabilities.
 
+## 🎯 Objective
+- Provide end-to-end, document-grounded analysis for legal contracts: instant summary, risk detection with explanations, and a QA assistant that answers strictly from the contract.
+- Deliver reproducible figures and tables for publication (IEEE-ready), plus a live demo UI.
+
+## 🔧 Technologies Used
+- Language Models: LegalBERT (nlpaueb/legal-bert-base-uncased), BART (facebook/bart-large-cnn)
+- Python Libraries: transformers, torch, scikit-learn, pandas, numpy, seaborn, matplotlib
+- App & Reports: Streamlit (web UI), ReportLab (PDF generation)
+- Retrieval: Dense embeddings + cosine similarity; rule-based patterns for risk detection
+
+## 🔄 System Flow
+- Upload contract → Instant summary → Risk analysis → Legal QA (document-only chat)
+- Components:
+  - Summarization: Extractive + optional Abstractive fusion
+  - Risk Detection: Semantic + rules → Fusion scoring
+  - QA: Retrieve top clauses → constrained, context-grounded answer
+
 ## 🚀 Features
 
 ### 📋 Document Analysis
@@ -25,6 +42,35 @@ An advanced AI-powered legal document analysis system that combines machine lear
 - **Semantic Search**: LegalBERT embeddings for intelligent clause retrieval
 - **Context-Aware Results**: Provides summaries and risk analysis for retrieved clauses
 - **Similarity Scoring**: Ranked results based on semantic relevance
+
+## ✅ Step-by-Step Procedure
+1. Install and launch
+   - Create venv and install requirements
+   - Run the web app:
+     ```bash
+     streamlit run webapp/app.py
+     ```
+   - Open the local URL shown (e.g., http://localhost:8501/)
+2. Use the web app
+   - Upload or paste contract text in Upload tab → Instant Summary appears
+   - Risk & Summary tab → Analyze risks and download PDF report
+   - Legal QA tab → Ask questions; answers are grounded in the contract with evidence
+3. Generate figures (PNG + SVG) for paper
+   - Script: [scripts/generate_figures.py](file:///d:/Perug/LegalLensAi-Majorrrrrr/LegalLensAI_chat/scripts/generate_figures.py)
+   - Output folder: results/figures
+   - Run:
+     ```bash
+     python scripts/generate_figures.py
+     ```
+4. Generate LaTeX tables for paper
+   - Script: [generate_paper_tables.py](file:///d:/Perug/LegalLensAi-Majorrrrrr/LegalLensAI_chat/results/scripts/generate_paper_tables.py)
+   - Run:
+     ```bash
+     python results/scripts/generate_paper_tables.py
+     ```
+5. Reproduce evaluation
+   - Ensure results/metrics CSVs exist, then re-run plots with the figure script
+   - For end-to-end evaluation, use your project-specific evaluation scripts in src/evaluation and legal_cuad/
 
 ## 🏗️ Architecture
 
@@ -142,6 +188,10 @@ summary = summarizer.summarize(document)
 print(f"Summary: {summary}")
 ```
 
+## 🖼️ Figures and Tables
+- Figures (architecture, training curves, per-category F1, ablation, confusion matrix, error distribution, demo heatmap, attention examples) generated to results/figures
+- Tables (dataset statistics, classification, ROUGE, risk detection, retrieval, ablation, significance) printed as LaTeX via the tables script
+
 ## 📊 Model Performance
 
 ### Clause Classification
@@ -231,6 +281,13 @@ from src.summarization.extractive import ExtractiveSummarizer
 summarizer = ExtractiveSummarizer(top_k=10)
 summary = summarizer.summarize(document)
 ```
+
+## 🧰 Troubleshooting
+- Windows virtual memory (paging file) errors:
+  - If you see “The paging file is too small” during model load, the app automatically falls back to extractive-only summarization and smaller embedding batches.
+  - Optional: increase Windows paging file size for heavier models.
+- Streamlit ports:
+  - If the preview shows “connection refused”, restart the app and open the latest Local URL.
 
 ## 📈 Performance Metrics
 

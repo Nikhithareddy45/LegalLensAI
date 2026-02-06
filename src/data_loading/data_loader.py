@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from src.utils.logger import setup_logger
+from src.data_loading.data_processor import DataProcessor
 
 logger = setup_logger(__name__, "data_loading.log")
 
@@ -101,3 +102,54 @@ class CUADDataLoader:
         logger.info(f"  - Clause types: {stats['unique_clause_types']}")
 
         return stats
+
+
+def load_qa_corpus_for_index() -> list:
+    """
+    Build the test corpus (paragraph contexts) used for retrieval indexing.
+    """
+    loader = CUADDataLoader()
+    loader.load()
+    contracts = loader.get_contracts()
+    processor = DataProcessor(seed=42)  # type: ignore
+    splits = processor.create_splits(contracts)
+    corpus = []
+    for contract in splits["test"]:
+        for paragraph in contract.get("paragraphs", []):
+            ctx = paragraph.get("context", "")
+            if ctx and len(ctx) > 20:
+                corpus.append(ctx)
+    return corpus
+
+
+def load_qa_test_data():
+    """
+    Return (queries, gold_ids) for QA retrieval evaluation on test split.
+    gold_ids reference positions in the test corpus built by load_qa_corpus_for_index.
+    """
+    loader = CUADDataLoader()
+    loader.load()
+    contracts = loader.get_contracts()
+    processor = DataProcessor(seed=42)  # type: ignore
+    splits = processor.create_splits(contracts)
+    # Build corpus to define IDs
+    corpus = []
+    for contract in splits["test"]:
+        for paragraph in contract.get("paragraphs", []):
+            ctx = paragraph.get("context", "")
+            if ctx and len(ctx) > 20:
+                corpus.append(ctx)
+    ctx_to_id = {c: i for i, c in enumerate(corpus)}
+    # Build queries and gold ids
+    queries = []
+    gold_ids = []
+    for contract in splits["test"]:
+        for paragraph in contract.get("paragraphs", []):
+            ctx = paragraph.get("context", "")
+            if ctx and len(ctx) > 20 and ctx in ctx_to_id:
+                for qa in paragraph.get("qas", []):
+                    q = qa.get("question", "")
+                    if q:
+                        queries.append(q)
+                        gold_ids.append(ctx_to_id[ctx])
+    return queries, gold_ids

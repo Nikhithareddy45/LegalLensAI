@@ -1,0 +1,4 @@
+Metric,Value
+ROUGE-1,0.612
+ROUGE-2,0.428
+ROUGE-L,0.578
