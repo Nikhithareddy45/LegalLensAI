@@ -1,0 +1,2 @@
+paired_t_stat,paired_p_value,ci_low,ci_high,bonferroni_m,bonferroni_min_p,significant
+12.246175779826249,4.115022580468073e-15,0.024305193194093803,0.033291088546604196,41,1.6871592579919098e-13,True
