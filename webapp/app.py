@@ -15,6 +15,38 @@ from src.risk_detection.semantic import SemanticRiskDetector
 from src.risk_detection.rules import RuleBasedRiskDetector
 from src.risk_detection.fusion import RiskFusion
 
+RISKY_KEYWORDS = [
+    "liability",
+    "indemnif",
+    "warrant",
+    "disclaim",
+    "limit of liability",
+    "consequential",
+    "incidental",
+    "lost profits",
+    "terminate for convenience",
+    "non-compete",
+    "no liability",
+    "shall not be liable",
+]
+
+
+@st.cache_resource
+def get_summarizer() -> FusionSummarizer:
+    return FusionSummarizer()
+
+
+@st.cache_resource
+def get_query_engine() -> QueryEngine:
+    return QueryEngine()
+
+
+@st.cache_resource
+def get_risk_fusion() -> RiskFusion:
+    semantic = SemanticRiskDetector()
+    rules = RuleBasedRiskDetector()
+    return RiskFusion(semantic, rules)
+
 
 def _split_clauses(text: str) -> list[str]:
     parts = [p.strip() for p in text.replace("\n", " ").split(".") if p.strip()]
@@ -22,17 +54,41 @@ def _split_clauses(text: str) -> list[str]:
 
 
 def _analyze_risks(text: str) -> pd.DataFrame:
-    semantic = SemanticRiskDetector()
-    rules = RuleBasedRiskDetector()
-    fusion = RiskFusion(semantic, rules)
+    fusion = get_risk_fusion()
     clauses = _split_clauses(text)
     rows = []
     for clause in clauses:
         r = fusion.fuse(clause)
-        sev = int(round(r["overall_semantic_risk"] * 5))
-        conf = float(r["overall_semantic_risk"])
+        clause_lower = clause.lower()
+        keywords_hit = any(kw in clause_lower for kw in RISKY_KEYWORDS)
+        rules_triggered = r["rule_triggered_count"] > 0
+        base_sev = int(round(r["overall_semantic_risk"] * 5))
+        sev = max(1, base_sev)
+        conf = max(0.35, float(r["overall_semantic_risk"]))
+        if keywords_hit:
+            sev = 4 if ("liability" in clause_lower or "disclaim" in clause_lower) else max(sev, 3)
+            conf = max(conf, 0.82)
+        elif rules_triggered:
+            sev = max(sev, 3)
+            conf = max(conf, 0.70)
         rows.append({"clause": clause, "severity": sev, "confidence": conf})
     return pd.DataFrame(rows)
+
+def _style_risk_df(df: pd.DataFrame) -> "pd.io.formats.style.Styler":
+    def row_color(row):
+        sev = row["severity"]
+        if sev >= 4:
+            bg = "#f8d7da"  # soft red
+        elif sev == 3:
+            bg = "#fff3cd"  # soft amber
+        elif sev == 2:
+            bg = "#e2e3e5"  # soft gray
+        else:
+            bg = "#d4edda"  # soft green
+        return [f"background-color: {bg}; color: #000000"] * len(row)
+    styler = df.style.apply(row_color, axis=1)
+    styler = styler.set_properties(**{"color": "#000000"})
+    return styler
 
 
 def generate_pdf_report(df_risk: pd.DataFrame, summary: str) -> bytes:
@@ -60,17 +116,29 @@ def generate_pdf_report(df_risk: pd.DataFrame, summary: str) -> bytes:
         clause_para = Paragraph(str(row["clause"]), styles["BodyText"])
         data.append([clause_para, int(row["severity"]), f"{row['confidence']:.3f}"])
     table = Table(data, repeatRows=1, colWidths=[320, 80, 80])
-    table.setStyle(TableStyle([
+    styles_list = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
         ("ALIGN", (1, 1), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightcyan]),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-    ]))
+    ]
+    for i in range(1, len(data)):
+        sev_cell = data[i][1]
+        sev_val = int(sev_cell) if isinstance(sev_cell, int) or str(sev_cell).isdigit() else 1
+        if sev_val >= 4:
+            bg = colors.Color(1, 0.8, 0.8)  # light red
+        elif sev_val == 3:
+            bg = colors.Color(1, 0.88, 0.7)  # light orange
+        elif sev_val == 2:
+            bg = colors.Color(1, 0.98, 0.77)  # light yellow
+        else:
+            bg = colors.Color(0.86, 0.93, 0.78)  # light green
+        styles_list.append(("BACKGROUND", (0, i), (-1, i), bg))
+    table.setStyle(TableStyle(styles_list))
     elems.append(table)
     elems.append(PageBreak())
     elems.append(Paragraph("Notes", styles["Heading2"]))
@@ -96,39 +164,51 @@ with tab1:
             text = "PDF parsing not implemented yet"
         st.session_state.text = text
         st.success("Contract loaded!")
+        with st.spinner("Generating instant summary..."):
+            try:
+                summarizer = get_summarizer()
+                instant_summary = summarizer.summarize(st.session_state.text)
+                st.subheader("Instant Summary")
+                st.write(instant_summary)
+            except Exception as e:
+                st.error(f"Summary generation failed: {e}")
 
 with tab2:
     if st.button("Analyze Risks & Generate Summary", type="primary"):
         if "text" not in st.session_state or not st.session_state.text:
             st.error("Please upload a contract first.")
         else:
-            with st.spinner("Running hybrid model..."):
+            with st.spinner("Analyzing risks and generating summary..."):
                 df_risk = _analyze_risks(st.session_state.text)
-                summarizer = FusionSummarizer()
+                summarizer = get_summarizer()
                 summary = summarizer.summarize(st.session_state.text)
                 st.subheader("Risk Heatmap – 41 Clauses")
-                st.dataframe(df_risk.style.background_gradient(subset=["severity"], cmap="RdYlGn_r"))
+                st.dataframe(_style_risk_df(df_risk), use_container_width=True)
                 st.subheader("Contract Summary")
                 st.write(summary)
                 pdf_bytes = generate_pdf_report(df_risk, summary)
                 st.download_button("Download Full Report (PDF)", pdf_bytes, "LegalLensAI_Report.pdf", mime="application/pdf")
 
 with tab3:
-    query = st.text_input("Ask any question about the contract")
-    if st.button("Get Answer"):
+    if "chat" not in st.session_state:
+        st.session_state.chat = []
+    for msg in st.session_state.chat:
+        st.chat_message(msg["role"]).write(msg["content"])
+    prompt = st.chat_input("Ask a question about the contract")
+    if prompt:
         if "text" not in st.session_state or not st.session_state.text:
             st.error("Please upload a contract first.")
         else:
-            clauses = _split_clauses(st.session_state.text)
-            engine = QueryEngine()
-            results = engine.process_query(query, clauses)
-            if not results:
-                st.warning("No evidence found.")
+            st.session_state.chat.append({"role": "user", "content": prompt})
+            with st.spinner("Retrieving evidence and generating answer..."):
+                clauses = _split_clauses(st.session_state.text)
+                engine = get_query_engine()
+                ans, evidence, conf = engine.answer(prompt, clauses, st.session_state.text)
+            if not evidence:
+                st.session_state.chat.append({"role": "assistant", "content": "No evidence found."})
             else:
-                top = sorted(results, key=lambda r: r["similarity_score"], reverse=True)[0]
-                ans = top["summary"]
-                conf = float(top["similarity_score"])
-                evidence = [{"clause": r["clause"], "score": r["similarity_score"]} for r in results[:3]]
-                st.write("Answer:", ans)
-                st.write("Confidence:", f"{conf:.3f}")
-                st.json(evidence)
+                answer_block = f"Answer: {ans}\nConfidence: {conf:.3f}\n\nTop Evidence:\n" + "\n".join(
+                    [f"• {e['clause']} (score {e['score']:.3f})" for e in evidence]
+                )
+                st.session_state.chat.append({"role": "assistant", "content": answer_block})
+            st.rerun()

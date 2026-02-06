@@ -3,6 +3,7 @@ from src.summarization.fusion import FusionSummarizer
 from src.risk_detection.semantic import SemanticRiskDetector
 from src.risk_detection.rules import RuleBasedRiskDetector
 from src.risk_detection.fusion import RiskFusion
+from src.query_system.qa_resolver import generate_answer
 
 
 class QueryEngine:
@@ -39,3 +40,12 @@ class QueryEngine:
             })
 
         return results
+
+    def answer(self, query, clauses, full_text: str = ""):
+        retrieved = self.process_query(query, clauses)
+        ans, conf = generate_answer(query, retrieved, full_text)
+        evidence = [
+            {"clause": r["clause"], "score": r["similarity_score"]}
+            for r in sorted(retrieved, key=lambda x: x["similarity_score"], reverse=True)[:3]
+        ]
+        return ans, evidence, conf
