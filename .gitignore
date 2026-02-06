@@ -1,0 +1,77 @@
+
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data files (too large for git)
+data/raw/*.json
+data/processed/*.pkl
+data/processed/*.json
+models/*.pt
+models/*.pth
+models/*.h5
+models/*.bin
+
+# Logs
+*.log
+logs/
+
+
+.codacy/
+.windsurf/
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# Testing
+.coverage
+.pytest_cache/
+.tox/
+
+# Configuration files with secrets
+config/secrets.py
+config/local.py
+.env
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Windsurf AI rules
+.windsurfrules
