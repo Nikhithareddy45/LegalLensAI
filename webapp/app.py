@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import sys
 from pathlib import Path
+from sklearn.metrics.pairwise import cosine_similarity
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, PageBreak
@@ -148,9 +149,9 @@ def generate_pdf_report(df_risk: pd.DataFrame, summary: str) -> bytes:
 
 
 st.set_page_config(page_title="LegalLensAI", layout="wide")
-st.title("LegalLensAI – Contract Intelligence for Lawyers")
+st.title("LegalLensAI – AI-Powered Contract Summarization, Risk Detection, and Legal Query Assistant")
 
-tab1, tab2, tab3 = st.tabs(["📤 Upload Contract", "🔍 Risk & Summary", "💬 Legal QA"])
+tab1, tab2, tab3 = st.tabs(["📤 Upload Contract", "🔍 Risk Analysis", "💬 Legal QA"])
 
 with tab1:
     uploaded = st.file_uploader("Upload contract (TXT/PDF)", type=["txt", "pdf"])
@@ -168,22 +169,30 @@ with tab1:
             try:
                 summarizer = get_summarizer()
                 instant_summary = summarizer.summarize(st.session_state.text)
+                st.session_state.summary = instant_summary
                 st.subheader("Instant Summary")
                 st.write(instant_summary)
             except Exception as e:
                 st.error(f"Summary generation failed: {e}")
+        try:
+            clauses = _split_clauses(st.session_state.text)
+            st.session_state.clauses = clauses
+            engine = get_query_engine()
+            st.session_state.clause_embs = engine.retriever._embed(clauses)
+        except Exception as e:
+            st.warning(f"Precomputing embeddings failed: {e}")
 
 with tab2:
-    if st.button("Analyze Risks & Generate Summary", type="primary"):
+    if st.button("Analyze Risks", type="primary"):
         if "text" not in st.session_state or not st.session_state.text:
             st.error("Please upload a contract first.")
         else:
-            with st.spinner("Analyzing risks and generating summary..."):
+            with st.spinner("Analyzing risks..."):
                 df_risk = _analyze_risks(st.session_state.text)
                 summarizer = get_summarizer()
                 summary = summarizer.summarize(st.session_state.text)
                 st.subheader("Risk Heatmap – 41 Clauses")
-                st.dataframe(_style_risk_df(df_risk), use_container_width=True)
+                st.dataframe(_style_risk_df(df_risk), width="stretch")
                 st.subheader("Contract Summary")
                 st.write(summary)
                 pdf_bytes = generate_pdf_report(df_risk, summary)
@@ -201,9 +210,30 @@ with tab3:
         else:
             st.session_state.chat.append({"role": "user", "content": prompt})
             with st.spinner("Retrieving evidence and generating answer..."):
-                clauses = _split_clauses(st.session_state.text)
-                engine = get_query_engine()
-                ans, evidence, conf = engine.answer(prompt, clauses, st.session_state.text)
+                clauses = st.session_state.get("clauses") or _split_clauses(st.session_state.text)
+                # Fast retrieval using precomputed clause embeddings
+                try:
+                    engine = get_query_engine()
+                    query_emb = engine.retriever._embed([prompt])
+                    clause_embs = st.session_state.get("clause_embs")
+                    if clause_embs is None:
+                        clause_embs = engine.retriever._embed(clauses)
+                        st.session_state.clause_embs = clause_embs
+                    sims = cosine_similarity(query_emb, clause_embs)[0]
+                    top_idx = sims.argsort()[-3:][::-1]
+                    retrieved = [{"clause": clauses[i], "similarity_score": float(sims[i])} for i in top_idx]
+                except Exception:
+                    # Fallback to engine retrieval
+                    retrieved = engine.process_query(prompt, clauses)
+                # Generic question handling: answer with summary
+                lower = prompt.lower()
+                generic = any(kw in lower for kw in ["what is the contract about", "what is the document related", "overview", "summary"])
+                if generic and st.session_state.get("summary"):
+                    ans = st.session_state.summary
+                    evidence = [{"clause": r["clause"], "score": r["similarity_score"]} for r in retrieved]
+                    conf = min(0.95, max(s["similarity_score"] for s in retrieved)) if retrieved else 0.7
+                else:
+                    ans, evidence, conf = get_query_engine().answer(prompt, clauses, st.session_state.text)
             if not evidence:
                 st.session_state.chat.append({"role": "assistant", "content": "No evidence found."})
             else:

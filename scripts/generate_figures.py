@@ -15,20 +15,17 @@ from src.risk_detection.rules import RuleBasedRiskDetector
 from src.risk_detection.fusion import RiskFusion
 
 
-FIG_DIR = Path("figures")
+FIG_DIR = Path("results/figures")
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def fig_save(name_base):
-    png_path = FIG_DIR / f"{name_base}"
-    if not png_path.suffix:
-        png_path = png_path.with_suffix(".png")
-    svg_path = png_path.with_suffix(".svg")
+    base = FIG_DIR / f"{name_base}"
+    svg_path = base.with_suffix(".svg")
     plt.tight_layout()
-    plt.savefig(png_path, dpi=300, bbox_inches="tight")
     plt.savefig(svg_path, format="svg", bbox_inches="tight")
     plt.close()
-    return png_path
+    return svg_path
 
 
 def figure_architecture():
