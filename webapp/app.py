@@ -11,6 +11,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from src.summarization.fusion import FusionSummarizer
+from src.summarization.extractive import ExtractiveSummarizer
 from src.query_system.query_engine import QueryEngine
 from src.risk_detection.semantic import SemanticRiskDetector
 from src.risk_detection.rules import RuleBasedRiskDetector
@@ -34,7 +35,7 @@ RISKY_KEYWORDS = [
 
 @st.cache_resource
 def get_summarizer() -> FusionSummarizer:
-    return FusionSummarizer()
+    return FusionSummarizer(use_abstractive=False)
 
 
 @st.cache_resource
@@ -52,6 +53,45 @@ def get_risk_fusion() -> RiskFusion:
 def _split_clauses(text: str) -> list[str]:
     parts = [p.strip() for p in text.replace("\n", " ").split(".") if p.strip()]
     return [p + "." for p in parts]
+
+
+def _safe_summarize(full_text: str) -> str:
+    try:
+        # Limit length to avoid large input to transformer
+        clauses = _split_clauses(full_text)
+        limited_text = " ".join(clauses[:20])
+        return get_summarizer().summarize(limited_text)
+    except OSError as e:
+        # Fallback to extractive-only when system memory is constrained
+        extr = ExtractiveSummarizer(top_k=5)
+        sentences = extr.summarize(full_text)
+        return " ".join(sentences) if sentences else ""
+    except Exception:
+        extr = ExtractiveSummarizer(top_k=5)
+        sentences = extr.summarize(full_text)
+        return " ".join(sentences) if sentences else ""
+
+
+def _batch_embed_texts(retriever, texts, batch_size: int = 8):
+    embs = []
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i + batch_size]
+        try:
+            embs.append(retriever._embed(batch))
+        except OSError:
+            # Reduce batch size further on memory errors
+            for t in batch:
+                try:
+                    embs.append(retriever._embed([t]))
+                except Exception:
+                    embs.append(np.zeros((1, 768)))
+        except Exception:
+            for t in batch:
+                try:
+                    embs.append(retriever._embed([t]))
+                except Exception:
+                    embs.append(np.zeros((1, 768)))
+    return np.vstack(embs) if embs else None
 
 
 def _analyze_risks(text: str) -> pd.DataFrame:
@@ -167,8 +207,7 @@ with tab1:
         st.success("Contract loaded!")
         with st.spinner("Generating instant summary..."):
             try:
-                summarizer = get_summarizer()
-                instant_summary = summarizer.summarize(st.session_state.text)
+                instant_summary = _safe_summarize(st.session_state.text)
                 st.session_state.summary = instant_summary
                 st.subheader("Instant Summary")
                 st.write(instant_summary)
@@ -178,7 +217,7 @@ with tab1:
             clauses = _split_clauses(st.session_state.text)
             st.session_state.clauses = clauses
             engine = get_query_engine()
-            st.session_state.clause_embs = engine.retriever._embed(clauses)
+            st.session_state.clause_embs = _batch_embed_texts(engine.retriever, clauses, batch_size=6)
         except Exception as e:
             st.warning(f"Precomputing embeddings failed: {e}")
 
