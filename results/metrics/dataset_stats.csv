@@ -1,5 +1,6 @@
-Field,Value
-num_contracts,500
-num_clauses,12400
-num_qa_pairs,8200
-num_clause_types,41
+Metric,Value
+Number of Contracts,510.0
+Number of Clauses,510.0
+Number of QA Pairs,20910.0
+Number of Clause Types,1.0
+Avg QAs per Contract,41.0

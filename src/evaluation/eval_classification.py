@@ -1,9 +1,12 @@
+import sys
 import torch
 import pandas as pd
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 from sklearn.metrics import precision_recall_fscore_support
 from pathlib import Path
+ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT))
 from src.data_loading.data_loader import CUADDataLoader
 from src.data_loading.data_processor import DataProcessor
 from src.data_preprocessing.preprocess_pipeline import PreprocessPipeline
@@ -13,7 +16,7 @@ from src.modeling.dataset import ClauseDataset
 
 MODEL_NAME = "nlpaueb/legal-bert-base-uncased"
 MODEL_PATH = "models/query_system/legalbert_clause.pt"
-OUT_CSV = Path("results/metrics/classification.csv")
+OUT_CSV = Path("results/metrics/classification_metrics.csv")
 
 
 def evaluate():

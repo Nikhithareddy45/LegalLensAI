@@ -1,0 +1,5 @@
+Metric,Value
+rule_coverage,0.9215686274509803
+severity_high_pct,0.8431372549019608
+severity_medium_pct,0.09803921568627451
+severity_low_pct,0.058823529411764705

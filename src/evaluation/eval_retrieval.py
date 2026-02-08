@@ -1,10 +1,13 @@
+import sys
 import pandas as pd
 from pathlib import Path
+ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT))
 from src.query_system.retriever import ClauseRetriever
 from src.data_loading.data_loader import CUADDataLoader
 from src.data_loading.data_processor import DataProcessor
 
-OUT_CSV = Path("results/metrics/retrieval.csv")
+OUT_CSV = Path("results/metrics/retrieval_metrics.csv")
 
 
 def _build_test_corpus_and_labels(contracts):

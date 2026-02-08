@@ -1,5 +1,8 @@
+import sys
 import pandas as pd
 from pathlib import Path
+ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT))
 from rouge_score import rouge_scorer
 from src.data_loading.data_loader import CUADDataLoader
 from src.data_loading.data_processor import DataProcessor

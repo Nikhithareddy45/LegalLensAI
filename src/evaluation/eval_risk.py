@@ -1,12 +1,15 @@
+import sys
 import pandas as pd
 from pathlib import Path
+ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT))
 from src.data_loading.data_loader import CUADDataLoader
 from src.data_loading.data_processor import DataProcessor
 from src.risk_detection.semantic import SemanticRiskDetector
 from src.risk_detection.rules import RuleBasedRiskDetector
 from src.risk_detection.fusion import RiskFusion
 
-OUT_CSV = Path("results/metrics/risk_detection.csv")
+OUT_CSV = Path("results/metrics/risk_detection_metrics.csv")
 
 
 def _severity_bucket(score: float) -> str:
